@@ -234,6 +234,107 @@
       background: #fff;
     }
 
+    /* Eye toggle */
+    .eye-toggle {
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #94A3B8;
+      font-size: 0.95rem;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      transition: color 0.15s;
+    }
+    .eye-toggle:hover { color: #6366F1; }
+
+    /* Forgot password */
+    .forgot-link {
+      display: block;
+      text-align: right;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #6366F1;
+      text-decoration: none;
+      margin-top: 0.4rem;
+      margin-bottom: 0.2rem;
+      transition: color 0.15s;
+    }
+    .forgot-link:hover { color: #4F46E5; text-decoration: underline; }
+
+    /* Forgot modal overlay */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #fff;
+      border-radius: 22px;
+      padding: 2rem 2rem 1.75rem;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.25);
+      animation: slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .modal-box h2 {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #1E293B;
+      margin-bottom: 0.35rem;
+    }
+    .modal-box p {
+      font-size: 0.82rem;
+      color: #64748B;
+      margin-bottom: 1.2rem;
+      line-height: 1.5;
+    }
+    .modal-close {
+      position: absolute;
+      top: 1rem; right: 1rem;
+      background: none; border: none;
+      font-size: 1.1rem; color: #94A3B8;
+      cursor: pointer;
+    }
+    .modal-wrap { position: relative; }
+    .modal-info {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      background: #EEF2FF;
+      border: 1px solid #C7D2FE;
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+      font-size: 0.82rem;
+      color: #3730A3;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+    .modal-info i { margin-top: 2px; flex-shrink: 0; }
+    .modal-btn-close {
+      width: 100%;
+      margin-top: 1.1rem;
+      padding: 0.78rem;
+      background: linear-gradient(135deg, #6366F1 0%, #7C3AED 100%);
+      color: #fff;
+      border: none;
+      border-radius: 11px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
     /* Submit button */
     .btn-submit {
       width: 100%;
@@ -357,8 +458,14 @@
             <div class="form-input-wrap">
               <i class="fas fa-lock fi"></i>
               <input type="password" id="login_password" name="password" class="form-input"
-                     placeholder="Enter your password" required autocomplete="current-password" />
+                     placeholder="Enter your password" required autocomplete="current-password" style="padding-right:2.8rem;" />
+              <button type="button" class="eye-toggle" onclick="toggleEye('login_password','eye-login')" tabindex="-1">
+                <i class="fas fa-eye" id="eye-login"></i>
+              </button>
             </div>
+            <a href="#" class="forgot-link" onclick="openForgot(event)">
+              <i class="fas fa-key"></i> Forgot Password?
+            </a>
           </div>
           <button type="submit" class="btn-submit">
             <i class="fas fa-arrow-right-to-bracket"></i> Sign In to CogniAccess
@@ -390,7 +497,10 @@
             <div class="form-input-wrap">
               <i class="fas fa-lock fi"></i>
               <input type="password" id="reg_password" name="password" class="form-input"
-                     placeholder="Minimum 6 characters" required minlength="6" autocomplete="new-password" />
+                     placeholder="Minimum 6 characters" required minlength="6" autocomplete="new-password" style="padding-right:2.8rem;" />
+              <button type="button" class="eye-toggle" onclick="toggleEye('reg_password','eye-reg')" tabindex="-1">
+                <i class="fas fa-eye" id="eye-reg"></i>
+              </button>
             </div>
           </div>
           <button type="submit" class="btn-submit">
@@ -409,6 +519,20 @@
     </div>
   </div>
 
+  <!-- Forgot Password Modal -->
+  <div class="modal-overlay" id="forgotModal" onclick="closeForgotOutside(event)">
+    <div class="modal-box modal-wrap">
+      <button class="modal-close" onclick="closeForgot()"><i class="fas fa-xmark"></i></button>
+      <h2><i class="fas fa-key" style="color:#6366F1;margin-right:0.4rem;"></i> Forgot Password?</h2>
+      <p>No worries! Since this app uses local accounts, your admin can reset your password directly.</p>
+      <div class="modal-info">
+        <i class="fas fa-circle-info"></i>
+        <span>Please contact your teacher or the person who set up CogniAccess for you. Ask them to reset your account password. Alternatively, you can <strong>create a new account</strong> using a different email.</span>
+      </div>
+      <button class="modal-btn-close" onclick="closeForgot()">Got it</button>
+    </div>
+  </div>
+
   <script>
     function switchTab(tab) {
       document.getElementById('tab-login').classList.toggle('active', tab === 'login');
@@ -419,6 +543,29 @@
     {% if active_tab == 'register' %}
     switchTab('register');
     {% endif %}
+
+    function toggleEye(inputId, iconId) {
+      const input = document.getElementById(inputId);
+      const icon  = document.getElementById(iconId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.replace('fa-eye', 'fa-eye-slash');
+      } else {
+        input.type = 'password';
+        icon.classList.replace('fa-eye-slash', 'fa-eye');
+      }
+    }
+
+    function openForgot(e) {
+      e.preventDefault();
+      document.getElementById('forgotModal').classList.add('open');
+    }
+    function closeForgot() {
+      document.getElementById('forgotModal').classList.remove('open');
+    }
+    function closeForgotOutside(e) {
+      if (e.target === document.getElementById('forgotModal')) closeForgot();
+    }
   </script>
 </body>
 </html>
