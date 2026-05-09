@@ -3,15 +3,17 @@ import csv
 import uuid
 import string
 import datetime
+from functools import wraps
 
 import nltk
 import numpy as np
 import pandas as pd
 import joblib
 import textstat
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
 from sklearn.ensemble import RandomForestRegressor
 from nltk.corpus import stopwords, wordnet
 from nltk.tokenize import sent_tokenize, word_tokenize
@@ -34,6 +36,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_URL = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'cogni_access.db')}")
 app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "cogni-access-secret-2026-varsha")
 
 db = SQLAlchemy(app)
 
@@ -41,7 +44,24 @@ FONT_MODEL_PATH  = os.path.join(BASE_DIR, "font_model.pkl")
 SPACE_MODEL_PATH = os.path.join(BASE_DIR, "spacing_model.pkl")
 DATASET_PATH     = os.path.join(BASE_DIR, "public_dataset.csv")
 
+# ── Auth Helper ───────────────────────────────────────────────────────────────
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect(url_for("login_page"))
+        return f(*args, **kwargs)
+    return decorated
+
 # ── Database Models ────────────────────────────────────────────────────────────
+class User(db.Model):
+    __tablename__ = "users"
+    id            = db.Column(db.Integer, primary_key=True)
+    name          = db.Column(db.String(100), nullable=False)
+    email         = db.Column(db.String(150), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(256), nullable=False)
+    created_at    = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
 class UserBehavior(db.Model):
     __tablename__ = "user_behavior"
     id             = db.Column(db.Integer, primary_key=True)
@@ -346,10 +366,53 @@ def train_and_predict():
 
     return {"font_size": font, "line_spacing": space}, len(df)
 
+# ── Auth Routes ────────────────────────────────────────────────────────────────
+@app.route("/login", methods=["GET", "POST"])
+def login_page():
+    if "user_id" in session:
+        return redirect(url_for("index"))
+    if request.method == "POST":
+        email    = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        user     = User.query.filter_by(email=email).first()
+        if user and check_password_hash(user.password_hash, password):
+            session["user_id"]   = user.id
+            session["user_name"] = user.name
+            return redirect(url_for("index"))
+        flash("Incorrect email or password. Please try again.", "error")
+    return render_template("login.html")
+
+@app.route("/register", methods=["POST"])
+def register():
+    name     = request.form.get("name", "").strip()
+    email    = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+    if not name or not email or not password:
+        flash("All fields are required.", "error")
+        return render_template("login.html", active_tab="register")
+    if len(password) < 6:
+        flash("Password must be at least 6 characters.", "error")
+        return render_template("login.html", active_tab="register")
+    if User.query.filter_by(email=email).first():
+        flash("An account with this email already exists. Please sign in.", "error")
+        return render_template("login.html", active_tab="register")
+    user = User(name=name, email=email, password_hash=generate_password_hash(password))
+    db.session.add(user)
+    db.session.commit()
+    session["user_id"]   = user.id
+    session["user_name"] = user.name
+    return redirect(url_for("index"))
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login_page"))
+
 # ── Routes ─────────────────────────────────────────────────────────────────────
 @app.route("/")
+@login_required
 def index():
-    return render_template("index.html")
+    return render_template("index.html", user_name=session.get("user_name", "User"))
 
 @app.route("/analyze", methods=["POST"])
 def analyze():

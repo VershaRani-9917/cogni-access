@@ -248,9 +248,36 @@ body.high-contrast {
   box-shadow: 0 2px 10px rgba(99, 102, 241, 0.15);
 }
 .nav-btn i { font-size: 0.9rem; }
+
+.nav-user-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(124,58,237,0.12));
+  border: 1px solid rgba(99,102,241,0.25);
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--brand-1);
+}
+.nav-user-chip i { font-size: 0.95rem; }
+.nav-username { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.nav-btn-logout {
+  text-decoration: none;
+  color: var(--text-secondary) !important;
+}
+.nav-btn-logout:hover {
+  color: var(--clr-hard) !important;
+  border-color: var(--clr-hard) !important;
+  background: rgba(239,68,68,0.06);
+}
+
 @media (max-width: 640px) {
   .nav-btn span { display: none; }
   .nav-btn { padding: 0.5rem 0.65rem; }
+  .nav-username { display: none; }
 }
 
 /* ── Hero ─────────────────────────────────────────────────────── */
