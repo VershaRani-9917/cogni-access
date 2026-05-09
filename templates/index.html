@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta name="theme-color" content="#6366F1" />
+  <meta name="description" content="AI-powered cognitive accessibility tool for dyslexia and reading difficulties" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="CogniAccess" />
+  <title>CogniAccess – AI Cognitive Accessibility Tool</title>
+  <link rel="manifest" href="/static/manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Lexend:wght@300;400;500;600;700&family=Comic+Neue:ital,wght@0,400;0,700;1,400;1,700&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- ===== NAVBAR ===== -->
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <div class="nav-brand">
+        <div class="nav-logo" aria-hidden="true">
+          <i class="fas fa-brain"></i>
+        </div>
+        <div class="nav-title-group">
+          <span class="brand-name">CogniAccess</span>
+          <span class="brand-sub">AI Accessibility Tool</span>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button class="nav-btn" id="dashboardBtn" title="View Analytics Dashboard" aria-label="Analytics Dashboard">
+          <i class="fas fa-chart-line"></i>
+          <span>Analytics</span>
+        </button>
+        <button class="nav-btn" id="accessibilityBtn" title="Accessibility Options" aria-label="Accessibility Options">
+          <i class="fas fa-universal-access"></i>
+          <span>Access</span>
+        </button>
+        <button class="nav-btn theme-toggle" id="themeBtn" title="Toggle Dark/Light Mode" aria-label="Toggle theme">
+          <i class="fas fa-moon" id="themeIcon"></i>
+          <span id="themeLabel">Dark</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ===== HERO ===== -->
+  <header class="hero" role="banner">
+    <div class="hero-inner">
+      <div class="hero-text">
+        <div class="hero-badge">
+          <span class="badge-dot"></span>
+          Powered by ML + NLP + WordNet
+        </div>
+        <h1 class="hero-title">
+          Make Any Text
+          <span class="gradient-text">Accessible</span>
+        </h1>
+        <p class="hero-subtitle">
+          Real-time AI analysis · Personalised display · Hover definitions
+        </p>
+        <div class="hero-chips">
+          <span class="hero-chip"><i class="fas fa-robot"></i> RandomForest ML</span>
+          <span class="hero-chip"><i class="fas fa-database"></i> SQLite Database</span>
+          <span class="hero-chip"><i class="fas fa-mobile-screen"></i> PWA Ready</span>
+        </div>
+      </div>
+    </div>
+    <div class="hero-wave" aria-hidden="true">
+      <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+        <path d="M0,40 C360,80 1080,0 1440,40 L1440,80 L0,80 Z" fill="var(--page-bg)"/>
+      </svg>
+    </div>
+  </header>
+
+  <!-- ===== MAIN ===== -->
+  <main class="page-main" id="main-content">
+
+    <!-- INPUT CARD -->
+    <section class="section-wrap" aria-label="Text Input">
+      <div class="card input-card">
+        <div class="input-card-header">
+          <div class="input-label-row">
+            <i class="fas fa-file-lines" aria-hidden="true"></i>
+            <span>Enter or paste your text</span>
+          </div>
+          <div class="input-meta">
+            <span id="liveIndicator" class="live-dot hidden" aria-live="polite">
+              <span class="pulse"></span>Analysing…
+            </span>
+            <span id="charCount" class="char-count" aria-live="polite">0 characters</span>
+          </div>
+        </div>
+        <textarea
+          id="inputText"
+          class="text-input"
+          placeholder="Paste any text — or click the mic button and speak your text aloud…"
+          rows="7"
+          aria-label="Input text for accessibility analysis"
+        ></textarea>
+        <div id="micStatus" class="mic-status hidden" aria-live="polite">
+          <span class="pulse" style="background: var(--clr-hard);"></span>
+          <span>Listening… speak now</span>
+        </div>
+        <p id="micInterim" class="mic-interim" aria-live="polite"></p>
+        <div class="input-footer">
+          <div class="input-hints">
+            <span class="hint"><i class="fas fa-keyboard"></i> Ctrl+Enter to analyse</span>
+            <span class="hint"><i class="fas fa-microphone"></i> Click mic to speak</span>
+          </div>
+          <div class="input-actions">
+            <button id="micBtn" class="btn btn-mic" onclick="toggleMic()" title="Speak your text aloud" aria-label="Toggle voice input">
+              <i class="fas fa-microphone" id="micIcon" aria-hidden="true"></i>
+              <span id="micLabel">Speak</span>
+            </button>
+            <button id="listenBtn" class="btn btn-mic btn-listen" onclick="toggleSpeak()" title="Read simplified text aloud" aria-label="Read simplified text aloud">
+              <i class="fas fa-volume-high" id="listenIcon" aria-hidden="true"></i>
+              <span id="listenLabel">Listen</span>
+            </button>
+            <button id="analyzeBtn" class="btn btn-primary" onclick="analyzeText()" aria-label="Analyse and simplify text">
+              <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
+              <span>Analyse &amp; Simplify</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STATS BAR -->
+    <div id="statsBar" class="stats-bar hidden" role="status" aria-live="polite">
+      <div class="stat-chip">
+        <i class="fas fa-gauge-high" aria-hidden="true"></i>
+        <span id="statDiff">—</span>
+      </div>
+      <div class="stat-chip">
+        <i class="fas fa-font" aria-hidden="true"></i>
+        <span id="statWords">—</span>
+      </div>
+      <div class="stat-chip">
+        <i class="fas fa-graduation-cap" aria-hidden="true"></i>
+        <span id="statGrade">—</span>
+      </div>
+      <div class="stat-chip stat-live">
+        <span class="pulse"></span>
+        <span>Behaviour Tracking</span>
+      </div>
+    </div>
+
+    <!-- RESULTS GRID -->
+    <div id="resultsGrid" class="results-grid hidden" aria-label="Analysis Results">
+
+      <!-- Analysis Card -->
+      <div class="card analysis-card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <i class="fas fa-chart-bar" aria-hidden="true"></i>AI Analysis
+          </h2>
+          <span id="difficultyBadge" class="badge" aria-label="Difficulty level">—</span>
+        </div>
+        <div class="difficulty-row">
+          <div class="diff-circle-wrap">
+            <svg class="diff-svg" viewBox="0 0 80 80" aria-hidden="true">
+              <circle class="diff-track" cx="40" cy="40" r="32"/>
+              <circle class="diff-progress" id="diffCircle" cx="40" cy="40" r="32"
+                stroke-dasharray="201" stroke-dashoffset="201"/>
+            </svg>
+            <div class="diff-center">
+              <span id="difficultyScore" class="diff-num">0</span>
+              <span class="diff-label">score</span>
+            </div>
+          </div>
+          <div class="diff-metrics">
+            <div class="metric-row">
+              <span class="metric-icon"><i class="fas fa-spell-check"></i></span>
+              <span class="metric-label">Words</span>
+              <span id="wordCount" class="metric-val">—</span>
+            </div>
+            <div class="metric-row">
+              <span class="metric-icon"><i class="fas fa-paragraph"></i></span>
+              <span class="metric-label">Sentences</span>
+              <span id="sentenceCount" class="metric-val">—</span>
+            </div>
+            <div class="metric-row">
+              <span class="metric-icon"><i class="fas fa-exclamation-circle"></i></span>
+              <span class="metric-label">Difficult Words</span>
+              <span id="difficultCount" class="metric-val">—</span>
+            </div>
+            <div class="metric-row">
+              <span class="metric-icon"><i class="fas fa-graduation-cap"></i></span>
+              <span class="metric-label">Reading Grade</span>
+              <span id="fleschGrade" class="metric-val">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ML Card -->
+      <div class="card ml-card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <i class="fas fa-brain" aria-hidden="true"></i>ML Recommendations
+          </h2>
+          <span class="card-tag">RandomForest</span>
+        </div>
+        <div class="ml-items">
+          <div class="ml-item">
+            <div class="ml-icon"><i class="fas fa-text-height" aria-hidden="true"></i></div>
+            <div class="ml-info">
+              <span class="ml-label">Font Size</span>
+              <span id="recFont" class="ml-value">—</span>
+            </div>
+            <div class="ml-bar-wrap">
+              <div id="fontProgressBar" class="ml-bar-fill" style="width:50%"></div>
+            </div>
+          </div>
+          <div class="ml-item">
+            <div class="ml-icon"><i class="fas fa-align-justify" aria-hidden="true"></i></div>
+            <div class="ml-info">
+              <span class="ml-label">Line Spacing</span>
+              <span id="recSpacing" class="ml-value">—</span>
+            </div>
+            <div class="ml-bar-wrap">
+              <div id="spacingProgressBar" class="ml-bar-fill" style="width:50%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="ml-status">
+          <span class="status-dot" id="modelDot"></span>
+          <span id="modelStatus">Awaiting data…</span>
+        </div>
+      </div>
+
+      <!-- Knowledge Sources Card -->
+      <div class="card sources-card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <i class="fas fa-layer-group" aria-hidden="true"></i>Knowledge Layer
+          </h2>
+        </div>
+        <div class="sources-list">
+          <div class="source-row" id="src-custom" role="status">
+            <div class="src-icon src-custom-icon"><i class="fas fa-book" aria-hidden="true"></i></div>
+            <div class="src-body">
+              <strong>Custom Dictionary</strong>
+              <span>80+ expert definitions</span>
+            </div>
+            <div class="src-check" aria-hidden="true"><i class="fas fa-circle-check"></i></div>
+          </div>
+          <div class="source-row" id="src-dataset" role="status">
+            <div class="src-icon src-dataset-icon"><i class="fas fa-database" aria-hidden="true"></i></div>
+            <div class="src-body">
+              <strong>Public Dataset</strong>
+              <span>Domain-specific CSV</span>
+            </div>
+            <div class="src-check" aria-hidden="true"><i class="fas fa-circle-check"></i></div>
+          </div>
+          <div class="source-row" id="src-wordnet" role="status">
+            <div class="src-icon src-wordnet-icon"><i class="fas fa-network-wired" aria-hidden="true"></i></div>
+            <div class="src-body">
+              <strong>WordNet NLP</strong>
+              <span>Princeton lexical database</span>
+            </div>
+            <div class="src-check" aria-hidden="true"><i class="fas fa-circle-check"></i></div>
+          </div>
+        </div>
+        <p class="source-note" id="sourceNote">Run analysis to activate sources</p>
+      </div>
+
+      <!-- Display Controls Card -->
+      <div class="card controls-card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <i class="fas fa-sliders" aria-hidden="true"></i>Display Settings
+          </h2>
+        </div>
+        <div class="sliders-wrap">
+          <div class="slider-group">
+            <div class="slider-top">
+              <label for="fontSlider" class="slider-label">Font Size</label>
+              <strong id="fontValue" class="slider-val">20px</strong>
+            </div>
+            <input type="range" id="fontSlider" class="slider" min="14" max="40" value="20"
+                   oninput="applyDisplaySettings()" aria-label="Adjust font size" />
+            <div class="slider-ends"><span>14px</span><span>40px</span></div>
+          </div>
+          <div class="slider-group">
+            <div class="slider-top">
+              <label for="spacingSlider" class="slider-label">Line Spacing</label>
+              <strong id="spacingValue" class="slider-val">1.5</strong>
+            </div>
+            <input type="range" id="spacingSlider" class="slider" min="1.0" max="3.0" step="0.1" value="1.5"
+                   oninput="applyDisplaySettings()" aria-label="Adjust line spacing" />
+            <div class="slider-ends"><span>1.0</span><span>3.0</span></div>
+          </div>
+          <div class="toggle-row">
+            <label for="fontSelect" class="toggle-label"><i class="fas fa-font"></i> Reading Font</label>
+            <select id="fontSelect" class="font-select" onchange="changeFont(this.value)" aria-label="Choose reading font">
+              <option value="inter">Default (Inter)</option>
+              <option value="opendyslexic">OpenDyslexic</option>
+              <option value="atkinson">Atkinson Hyperlegible</option>
+              <option value="lexend">Lexend</option>
+              <option value="comic">Comic Neue</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end results-grid -->
+
+    <!-- TEXT OUTPUT PANELS -->
+    <div id="textOutputArea" class="text-panels hidden">
+      <div class="card text-card">
+        <div class="card-header">
+          <h2 class="card-title"><i class="fas fa-file-lines" aria-hidden="true"></i>Original Text</h2>
+          <span class="card-pill">Difficult words underlined</span>
+        </div>
+        <div id="originalTextOutput" class="text-output" role="region" aria-label="Original text with highlights"></div>
+      </div>
+      <div class="card text-card">
+        <div class="card-header">
+          <h2 class="card-title"><i class="fas fa-lightbulb" aria-hidden="true"></i>Simplified Text</h2>
+          <span class="card-pill">Hover words for definitions</span>
+        </div>
+        <div id="simplifiedTextOutput" class="text-output tooltip-host" role="region" aria-label="Simplified text with definitions"></div>
+      </div>
+    </div>
+
+    <!-- BEHAVIOUR TRACKING PANEL -->
+    <div id="behaviorPanel" class="card behavior-card hidden">
+      <div class="card-header">
+        <h2 class="card-title"><i class="fas fa-wave-square" aria-hidden="true"></i>Real-time Behaviour Tracking</h2>
+        <span class="live-badge"><span class="pulse"></span>LIVE</span>
+      </div>
+      <div class="behavior-stats" role="group" aria-label="Session statistics">
+        <div class="bstat">
+          <span class="bstat-val" id="totalHovers">0</span>
+          <span class="bstat-label">Words Hovered</span>
+        </div>
+        <div class="bstat">
+          <span class="bstat-val" id="avgHoverTime">0.0s</span>
+          <span class="bstat-label">Avg Hover Time</span>
+        </div>
+        <div class="bstat">
+          <span class="bstat-val" id="sessionEvents">0</span>
+          <span class="bstat-label">Session Events</span>
+        </div>
+        <div class="bstat">
+          <span class="bstat-val" id="mlDataPoints">0</span>
+          <span class="bstat-label">ML Data Points</span>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="behaviorChart" aria-label="Hover behaviour chart" role="img"></canvas>
+      </div>
+    </div>
+
+  </main><!-- end page-main -->
+
+  <!-- ===== LOADING OVERLAY ===== -->
+  <div id="loadingOverlay" class="loading-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="Loading">
+    <div class="loading-card">
+      <div class="loading-orb" aria-hidden="true">
+        <i class="fas fa-brain"></i>
+        <div class="orb-ring r1"></div>
+        <div class="orb-ring r2"></div>
+        <div class="orb-ring r3"></div>
+      </div>
+      <p class="loading-msg">Analysing with AI…</p>
+      <div class="loading-steps" aria-live="polite">
+        <div class="step active" id="step1"><i class="fas fa-check"></i>Preprocessing text</div>
+        <div class="step" id="step2"><i class="fas fa-check"></i>Detecting difficult words</div>
+        <div class="step" id="step3"><i class="fas fa-check"></i>Running ML model</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DASHBOARD MODAL ===== -->
+  <div id="dashboardModal" class="modal" style="display:none" role="dialog" aria-modal="true" aria-label="Analytics Dashboard">
+    <div class="modal-backdrop" onclick="closeDashboard()"></div>
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h2><i class="fas fa-chart-line" aria-hidden="true"></i>Analytics Dashboard</h2>
+        <button class="modal-close" onclick="closeDashboard()" aria-label="Close dashboard">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="dash-stats" role="group" aria-label="Dashboard statistics">
+          <div class="dash-stat">
+            <span class="dash-val" id="dashTotal">—</span>
+            <span class="dash-label">Analyses</span>
+          </div>
+          <div class="dash-stat">
+            <span class="dash-val" id="dashBehaviors">—</span>
+            <span class="dash-label">Hovers Tracked</span>
+          </div>
+          <div class="dash-stat">
+            <span class="dash-val" id="dashSessions">—</span>
+            <span class="dash-label">Sessions</span>
+          </div>
+          <div class="dash-stat">
+            <span class="dash-val" id="dashAvgDiff">—</span>
+            <span class="dash-label">Avg Difficulty</span>
+          </div>
+        </div>
+        <div class="dash-charts">
+          <div class="dash-chart-box">
+            <h3>Difficulty Distribution</h3>
+            <canvas id="diffChart" aria-label="Difficulty distribution chart" role="img"></canvas>
+          </div>
+          <div class="dash-chart-box">
+            <h3>Hover Time Pattern</h3>
+            <canvas id="hoverHistChart" aria-label="Hover time histogram" role="img"></canvas>
+          </div>
+        </div>
+        <div class="dash-table-wrap">
+          <h3>Recent Analyses</h3>
+          <table class="dash-table" aria-label="Recent text analyses">
+            <thead>
+              <tr><th>Time</th><th>Difficulty</th><th>Score</th><th>Words</th></tr>
+            </thead>
+            <tbody id="recentTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ACCESSIBILITY PANEL ===== -->
+  <aside id="accessPanel" class="side-panel" style="display:none" role="complementary" aria-label="Accessibility options">
+    <div class="panel-header">
+      <h3><i class="fas fa-universal-access" aria-hidden="true"></i>Accessibility</h3>
+      <button onclick="closeAccessPanel()" aria-label="Close accessibility panel">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="panel-body">
+      <div class="access-row">
+        <label for="highContrast">High Contrast</label>
+        <label class="toggle" aria-label="Toggle high contrast">
+          <input type="checkbox" id="highContrast" onchange="toggleHighContrast()" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+      <div class="access-row">
+        <label for="reduceMotion">Reduce Motion</label>
+        <label class="toggle" aria-label="Toggle reduce motion">
+          <input type="checkbox" id="reduceMotion" onchange="toggleReduceMotion()" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+      <div class="access-row">
+        <label for="largeCursor">Large Cursor</label>
+        <label class="toggle" aria-label="Toggle large cursor">
+          <input type="checkbox" id="largeCursor" onchange="toggleLargeCursor()" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+      <div class="access-row">
+        <label for="fontSelectPanel">Reading Font</label>
+        <select id="fontSelectPanel" class="font-select" onchange="changeFont(this.value)" aria-label="Choose reading font">
+          <option value="inter">Default</option>
+          <option value="opendyslexic">OpenDyslexic</option>
+          <option value="atkinson">Atkinson</option>
+          <option value="lexend">Lexend</option>
+          <option value="comic">Comic Neue</option>
+        </select>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== PWA INSTALL BANNER ===== -->
+  <div id="installBanner" class="install-banner hidden" role="banner">
+    <div class="install-left">
+      <i class="fas fa-mobile-screen" aria-hidden="true"></i>
+      <div>
+        <strong>Install CogniAccess</strong>
+        <span>Add to home screen — works offline</span>
+      </div>
+    </div>
+    <div class="install-right">
+      <button id="installBtn" class="btn btn-install">Install</button>
+      <button class="install-dismiss" onclick="dismissInstall()" aria-label="Dismiss install banner">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="site-footer" role="contentinfo">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <i class="fas fa-brain" aria-hidden="true"></i> CogniAccess
+      </div>
+      <div class="footer-tech">
+        <span>NLTK</span><span>WordNet</span><span>scikit-learn</span><span>SQLite</span><span>Chart.js</span>
+      </div>
+      <p class="footer-copy">© 2026 CogniAccess — Making Text Accessible for Everyone</p>
+    </div>
+  </footer>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>

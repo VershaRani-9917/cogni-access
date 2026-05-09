@@ -1,0 +1,27 @@
+# Database (fresh one created on server)
+cogni_access.db
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Environment variables
+.env
+
+# Claude memory folder
+.claude/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

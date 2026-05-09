@@ -1,0 +1,457 @@
+import os
+import csv
+import uuid
+import string
+import datetime
+
+import nltk
+import numpy as np
+import pandas as pd
+import joblib
+import textstat
+from flask import Flask, request, jsonify, render_template
+from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
+from sklearn.ensemble import RandomForestRegressor
+from nltk.corpus import stopwords, wordnet
+from nltk.tokenize import sent_tokenize, word_tokenize
+
+for resource in ["punkt", "punkt_tab", "stopwords", "wordnet", "averaged_perceptron_tagger"]:
+    try:
+        if resource.startswith("punkt"):
+            nltk.data.find(f"tokenizers/{resource}")
+        elif resource == "averaged_perceptron_tagger":
+            nltk.data.find(f"taggers/{resource}")
+        else:
+            nltk.data.find(f"corpora/{resource}")
+    except LookupError:
+        nltk.download(resource, quiet=True)
+
+app = Flask(__name__)
+CORS(app)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_URL = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'cogni_access.db')}")
+app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+FONT_MODEL_PATH  = os.path.join(BASE_DIR, "font_model.pkl")
+SPACE_MODEL_PATH = os.path.join(BASE_DIR, "spacing_model.pkl")
+DATASET_PATH     = os.path.join(BASE_DIR, "public_dataset.csv")
+
+# ── Database Models ────────────────────────────────────────────────────────────
+class UserBehavior(db.Model):
+    __tablename__ = "user_behavior"
+    id             = db.Column(db.Integer, primary_key=True)
+    timestamp      = db.Column(db.DateTime, default=datetime.datetime.utcnow, index=True)
+    session_id     = db.Column(db.String(64), index=True)
+    word           = db.Column(db.String(100))
+    word_length    = db.Column(db.Integer)
+    hover_time     = db.Column(db.Float)
+    font_size      = db.Column(db.Float)
+    line_spacing   = db.Column(db.Float)
+    difficulty_level = db.Column(db.String(20))
+
+class TextAnalysis(db.Model):
+    __tablename__ = "text_analysis"
+    id                  = db.Column(db.Integer, primary_key=True)
+    timestamp           = db.Column(db.DateTime, default=datetime.datetime.utcnow, index=True)
+    session_id          = db.Column(db.String(64), index=True)
+    text_preview        = db.Column(db.String(300))
+    difficulty_score    = db.Column(db.Float)
+    difficulty_level    = db.Column(db.String(20))
+    word_count          = db.Column(db.Integer)
+    sentence_count      = db.Column(db.Integer)
+    difficult_word_count= db.Column(db.Integer)
+    readability_grade   = db.Column(db.Float)
+
+with app.app_context():
+    db.create_all()
+
+# ── Custom Dictionary ──────────────────────────────────────────────────────────
+CUSTOM_DICTIONARY = {
+    "accessibility": "making things easy to use for everyone",
+    "accessible": "easy for people to use or understand",
+    "disability": "a condition that makes some activities harder",
+    "cognitive": "related to thinking and understanding",
+    "dyslexia": "a reading difficulty affecting letter recognition",
+    "neurodiversity": "the range of differences in individual brain function",
+    "algorithm": "a step-by-step method to solve a problem",
+    "artificial": "made by humans, not natural",
+    "intelligence": "ability to learn and understand",
+    "technology": "tools created using science",
+    "interface": "the way a user interacts with a system",
+    "abbreviate": "to shorten a word or text",
+    "abnormal": "different from what is usual",
+    "abstract": "an idea not based on physical things",
+    "accelerate": "to go faster",
+    "accomplish": "to successfully finish something",
+    "accurate": "correct and without mistakes",
+    "adjacent": "next to or near something",
+    "aggregate": "a total amount made up of many parts",
+    "allocate": "to give out or assign something",
+    "ambiguous": "having more than one meaning",
+    "analyze": "to examine something carefully",
+    "annotate": "to add notes to a text",
+    "anonymous": "having no known name",
+    "apparatus": "equipment used for a specific purpose",
+    "arbitrary": "chosen randomly without a clear reason",
+    "architect": "a person who designs buildings",
+    "authentic": "real and genuine, not fake",
+    "authorize": "to give official permission",
+    "automatic": "working by itself without human help",
+    "calculate": "to find an answer using math",
+    "capacity": "the maximum amount something can hold",
+    "catastrophe": "a terrible disaster",
+    "coherent": "logically connected and clear",
+    "coincidence": "two things happening at the same time by chance",
+    "collaborate": "to work together with others",
+    "comprehend": "to fully understand something",
+    "consecutive": "following one after another without a break",
+    "consistent": "always behaving the same way",
+    "contradict": "to say the opposite of something",
+    "correlation": "a connection between two things",
+    "demonstrate": "to show how something works",
+    "determine": "to find out or decide something",
+    "distribute": "to give something out to many people",
+    "elaborate": "to give more detail or explanation",
+    "eliminate": "to completely remove something",
+    "emphasize": "to give special importance to something",
+    "establish": "to set up or create something",
+    "evaluate": "to judge the value of something",
+    "exaggerate": "to make something seem bigger than it is",
+    "facilitate": "to make something easier",
+    "formulate": "to create or develop a plan",
+    "fundamental": "basic and most important",
+    "generate": "to produce or create something",
+    "hypothesis": "a guess that needs to be tested",
+    "identical": "exactly the same",
+    "illuminate": "to light up or make clear",
+    "implement": "to put a plan into action",
+    "inadequate": "not enough or good enough",
+    "interpret": "to explain or understand the meaning",
+    "investigate": "to look into something carefully",
+    "justify": "to give a reason for something",
+    "maintain": "to keep something in good condition",
+    "maximize": "to make as large as possible",
+    "mechanism": "a system of parts that work together",
+    "minimize": "to make as small as possible",
+    "multitude": "a very large number of things",
+    "negotiate": "to discuss to reach an agreement",
+    "objective": "a goal you are trying to achieve",
+    "participate": "to take part in something",
+    "perceive": "to become aware of something",
+    "phenomenon": "a remarkable or unusual event",
+    "predominant": "most common or important",
+    "prioritize": "to decide what is most important",
+    "procedure": "a set of steps for doing something",
+    "proficiency": "skill and expertise in something",
+    "reconcile": "to restore a friendly relationship",
+    "reinforce": "to strengthen or support something",
+    "represent": "to stand for or act on behalf of",
+    "significant": "important or meaningful",
+    "specific": "clearly defined or particular",
+    "sufficient": "enough for what is needed",
+    "summarize": "to give a brief overview",
+    "theoretical": "based on ideas rather than practice",
+    "transform": "to completely change something",
+    "transparent": "easy to see through; open and honest",
+    "ultimately": "in the end; finally",
+    "understand": "to know the meaning of something",
+    "utilize": "to make use of something",
+    "validate": "to confirm that something is correct",
+    "variation": "a difference or change in something",
+    "education": "the process of teaching and learning",
+    "research": "careful study to discover new information",
+    "experiment": "a test done to discover something",
+    "information": "facts or knowledge about something",
+    "behavior": "the way a person acts or responds",
+    "simplify": "make something easier to understand",
+    "communication": "sharing information with others",
+    "development": "the process of growth or progress",
+    "experience": "knowledge gained through practice",
+    "feedback": "information about performance",
+    "debate": "a discussion where people have different opinions",
+    "appropriate": "suitable or correct for a situation",
+    "pompous": "acting as if more important than others",
+    "mundane": "ordinary and not interesting",
+    "dataset": "a collection of related data",
+    "prediction": "a guess about what will happen",
+}
+
+# ── Dataset Loader ─────────────────────────────────────────────────────────────
+def load_public_dataset():
+    dataset = {}
+    if not os.path.exists(DATASET_PATH):
+        return dataset
+    with open(DATASET_PATH, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            word = row.get("word", "").strip().lower()
+            defn = row.get("definition", row.get("hint", "")).strip()
+            if word and defn:
+                dataset[word] = defn
+    return dataset
+
+PUBLIC_DATASET = load_public_dataset()
+
+def wordnet_definition(word):
+    synsets = wordnet.synsets(word)
+    return synsets[0].definition() if synsets else None
+
+def get_definition(word):
+    key = word.lower()
+    if key in CUSTOM_DICTIONARY:
+        return CUSTOM_DICTIONARY[key], "custom"
+    if key in PUBLIC_DATASET:
+        return PUBLIC_DATASET[key], "dataset"
+    defn = wordnet_definition(key)
+    if defn:
+        return defn, "wordnet"
+    return None, None
+
+# ── Text Processing ────────────────────────────────────────────────────────────
+STOP_WORDS = set(stopwords.words("english"))
+
+def preprocess_text(raw_text):
+    cleaned   = " ".join(raw_text.split())
+    sentences = sent_tokenize(cleaned)
+    words     = word_tokenize(cleaned)
+    alpha     = [w for w in words if w.isalpha()]
+
+    avg_word_len = (sum(len(w) for w in alpha) / len(alpha)) if alpha else 0
+    avg_sent_len = (len(alpha) / len(sentences)) if sentences else 0
+    score        = round(0.5 * avg_word_len + 0.3 * avg_sent_len, 2)
+
+    try:
+        grade = textstat.flesch_kincaid_grade(cleaned)
+        ease  = textstat.flesch_reading_ease(cleaned)
+    except Exception:
+        grade, ease = 0, 0
+
+    level = "Easy" if score < 6 else "Medium" if score <= 10 else "Hard"
+
+    return {
+        "cleaned_text":    cleaned,
+        "sentences":       sentences,
+        "alpha_words":     alpha,
+        "avg_word_len":    avg_word_len,
+        "avg_sent_len":    avg_sent_len,
+        "difficulty_score": score,
+        "difficulty_level": level,
+        "flesch_grade":    round(grade, 1),
+        "readability_ease": round(ease, 1),
+    }
+
+def detect_difficult_words(alpha_words):
+    seen, difficult = set(), {}
+    for word in alpha_words:
+        lower = word.lower()
+        if lower in seen or lower in STOP_WORDS or len(lower) <= 6:
+            continue
+        defn, source = get_definition(lower)
+        if defn:
+            difficult[lower] = {"definition": defn, "source": source}
+        seen.add(lower)
+    return difficult
+
+# ── HTML Builders ──────────────────────────────────────────────────────────────
+def _detokenize(tokens):
+    text = ""
+    for i, tok in enumerate(tokens):
+        if i == 0 or tok in string.punctuation:
+            text += tok
+        else:
+            text += " " + tok
+    return text
+
+def build_highlighted_html(text, difficult_words):
+    result = []
+    for token in word_tokenize(text):
+        lower = token.lower()
+        if lower in difficult_words and token.isalpha():
+            defn = difficult_words[lower]["definition"].replace('"', "&quot;")
+            result.append(f'<mark class="highlight-word" title="{defn}">{token}</mark>')
+        else:
+            result.append(token)
+    return _detokenize(result)
+
+def build_tooltip_html(text, difficult_words):
+    result = []
+    for token in word_tokenize(text):
+        lower = token.lower()
+        if lower in difficult_words and token.isalpha():
+            defn   = difficult_words[lower]["definition"].replace('"', "&quot;")
+            source = difficult_words[lower]["source"]
+            result.append(
+                f'<span class="tooltip-word" data-word-length="{len(token)}" '
+                f'data-definition="{defn}" data-source="{source}">{token}'
+                f'<span class="tooltip-box">'
+                f'<span class="tt-source tt-{source}">{source}</span>'
+                f'{defn}</span></span>'
+            )
+        else:
+            result.append(token)
+    return _detokenize(result)
+
+# ── Machine Learning ───────────────────────────────────────────────────────────
+def _get_df():
+    rows = UserBehavior.query.filter(
+        UserBehavior.hover_time.isnot(None),
+        UserBehavior.word_length.isnot(None),
+    ).all()
+    if len(rows) < 5:
+        return None
+    return pd.DataFrame([{
+        "word_length":  r.word_length,
+        "hover_time":   r.hover_time,
+        "font_size":    r.font_size,
+        "line_spacing": r.line_spacing,
+    } for r in rows])
+
+def train_models():
+    df = _get_df()
+    if df is None:
+        return False
+    X = df[["word_length", "hover_time"]].values
+    rf_font = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_font.fit(X, df["font_size"].values)
+    joblib.dump(rf_font, FONT_MODEL_PATH)
+    rf_space = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_space.fit(X, df["line_spacing"].values)
+    joblib.dump(rf_space, SPACE_MODEL_PATH)
+    return True
+
+def train_and_predict():
+    defaults = {"font_size": 20, "line_spacing": 1.5}
+    df = _get_df()
+    if df is None:
+        return defaults, 0
+
+    if not os.path.exists(FONT_MODEL_PATH):
+        if not train_models():
+            return defaults, len(df)
+
+    try:
+        rf_font  = joblib.load(FONT_MODEL_PATH)
+        rf_space = joblib.load(SPACE_MODEL_PATH)
+    except Exception:
+        return defaults, len(df)
+
+    x = np.array([[df["word_length"].mean(), df["hover_time"].mean()]])
+    font  = max(14, min(40, round(float(rf_font.predict(x)[0]),  1)))
+    space = max(1.0, min(3.0, round(float(rf_space.predict(x)[0]), 2)))
+
+    return {"font_size": font, "line_spacing": space}, len(df)
+
+# ── Routes ─────────────────────────────────────────────────────────────────────
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+@app.route("/analyze", methods=["POST"])
+def analyze():
+    data       = request.get_json(force=True)
+    raw_text   = data.get("text", "").strip()
+    session_id = data.get("session_id", str(uuid.uuid4()))
+
+    if not raw_text:
+        return jsonify({"error": "No text provided"}), 400
+
+    processed      = preprocess_text(raw_text)
+    difficult_words = detect_difficult_words(processed["alpha_words"])
+    highlighted     = build_highlighted_html(processed["cleaned_text"], difficult_words)
+    simplified      = build_tooltip_html(processed["cleaned_text"], difficult_words)
+    rec, n_pts      = train_and_predict()
+    sources         = list(set(v["source"] for v in difficult_words.values()))
+
+    record = TextAnalysis(
+        session_id=session_id,
+        text_preview=raw_text[:300],
+        difficulty_score=processed["difficulty_score"],
+        difficulty_level=processed["difficulty_level"],
+        word_count=len(processed["alpha_words"]),
+        sentence_count=len(processed["sentences"]),
+        difficult_word_count=len(difficult_words),
+        readability_grade=processed["flesch_grade"],
+    )
+    db.session.add(record)
+    db.session.commit()
+
+    return jsonify({
+        "difficulty_score":    processed["difficulty_score"],
+        "difficulty_level":    processed["difficulty_level"],
+        "flesch_grade":        processed["flesch_grade"],
+        "readability_ease":    processed["readability_ease"],
+        "highlighted_html":    highlighted,
+        "simplified_html":     simplified,
+        "recommended_font":    rec["font_size"],
+        "recommended_spacing": rec["line_spacing"],
+        "tooltip_words":       list(difficult_words.keys()),
+        "sources_used":        sources,
+        "word_count":          len(processed["alpha_words"]),
+        "sentence_count":      len(processed["sentences"]),
+        "difficult_word_count": len(difficult_words),
+        "data_points":         n_pts,
+    })
+
+@app.route("/track_behavior", methods=["POST"])
+def track_behavior():
+    data = request.get_json(force=True)
+    record = UserBehavior(
+        session_id=data.get("session_id", str(uuid.uuid4())),
+        word=data.get("word", ""),
+        word_length=data.get("word_length", 0),
+        hover_time=data.get("hover_time", 0),
+        font_size=data.get("font_size", 20),
+        line_spacing=data.get("line_spacing", 1.5),
+        difficulty_level=data.get("difficulty_level", ""),
+    )
+    db.session.add(record)
+    db.session.commit()
+
+    count = UserBehavior.query.count()
+    if count % 5 == 0:
+        train_models()
+
+    rec, n_pts = train_and_predict()
+    return jsonify({"status": "ok", "data_points": n_pts, "updated_recommendation": rec})
+
+@app.route("/get_recommendation", methods=["GET"])
+def get_recommendation():
+    rec, n_pts = train_and_predict()
+    return jsonify({**rec, "data_points": n_pts})
+
+@app.route("/dashboard_stats", methods=["GET"])
+def dashboard_stats():
+    total      = TextAnalysis.query.count()
+    behaviors  = UserBehavior.query.count()
+    sessions   = db.session.query(TextAnalysis.session_id).distinct().count()
+    easy       = TextAnalysis.query.filter_by(difficulty_level="Easy").count()
+    medium     = TextAnalysis.query.filter_by(difficulty_level="Medium").count()
+    hard       = TextAnalysis.query.filter_by(difficulty_level="Hard").count()
+
+    recent_rows = TextAnalysis.query.order_by(TextAnalysis.timestamp.desc()).limit(10).all()
+    recent = [{"time": r.timestamp.strftime("%H:%M"), "score": r.difficulty_score,
+               "level": r.difficulty_level, "words": r.word_count} for r in recent_rows]
+
+    brows  = UserBehavior.query.order_by(UserBehavior.timestamp.desc()).limit(50).all()
+    hovers = [round(b.hover_time, 2) for b in brows if b.hover_time]
+    avg_h  = round(sum(hovers) / len(hovers), 2) if hovers else 0
+    avg_d  = db.session.query(db.func.avg(TextAnalysis.difficulty_score)).scalar() or 0
+
+    return jsonify({
+        "total_analyses": total,
+        "total_behaviors": behaviors,
+        "sessions": sessions,
+        "avg_difficulty": round(float(avg_d), 2),
+        "avg_hover_time": avg_h,
+        "difficulty_distribution": {"Easy": easy, "Medium": medium, "Hard": hard},
+        "recent_analyses": recent,
+        "hover_data": hovers[-20:],
+    })
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5001)
