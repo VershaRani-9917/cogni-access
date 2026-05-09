@@ -618,7 +618,7 @@ function initSpeech() {
   }
 
   speechRecognition = new SpeechRecognition();
-  speechRecognition.continuous     = true;
+  speechRecognition.continuous     = false;  // false prevents double-transcription at session restarts
   speechRecognition.interimResults = true;
   speechRecognition.lang           = "en-US";
 
@@ -629,7 +629,10 @@ function initSpeech() {
 
     for (let i = e.resultIndex; i < e.results.length; i++) {
       if (e.results[i].isFinal) {
-        finalText += e.results[i][0].transcript + " ";
+        // Only accept results with reasonable confidence (filters background noise)
+        if (e.results[i][0].confidence > 0.4) {
+          finalText += e.results[i][0].transcript + " ";
+        }
       } else {
         interimText += e.results[i][0].transcript;
       }
@@ -644,7 +647,10 @@ function initSpeech() {
   };
 
   speechRecognition.onend = () => {
-    if (isListening) speechRecognition.start();
+    const interim = document.getElementById("micInterim");
+    if (interim) interim.textContent = "";
+    // Small delay before restarting to prevent audio buffer overlap
+    if (isListening) setTimeout(() => { try { speechRecognition.start(); } catch (_) {} }, 150);
   };
 
   speechRecognition.onerror = (e) => {

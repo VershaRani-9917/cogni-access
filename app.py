@@ -396,7 +396,7 @@ def register():
     if User.query.filter_by(email=email).first():
         flash("An account with this email already exists. Please sign in.", "error")
         return render_template("login.html", active_tab="register")
-    user = User(name=name, email=email, password_hash=generate_password_hash(password))
+    user = User(name=name, email=email, password_hash=generate_password_hash(password, method='pbkdf2:sha256'))
     db.session.add(user)
     db.session.commit()
     session["user_id"]   = user.id
