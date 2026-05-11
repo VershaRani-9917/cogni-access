@@ -34,6 +34,9 @@ CORS(app)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_URL = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'cogni_access.db')}")
+# Render.com provides postgres:// but SQLAlchemy 1.4+ requires postgresql://
+if DB_URL.startswith("postgres://"):
+    DB_URL = DB_URL.replace("postgres://", "postgresql://", 1)
 app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "cogni-access-secret-2026-varsha")
@@ -51,7 +54,17 @@ _model_cache = {"font": None, "space": None, "n_pts": 0}
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        is_api = request.path.startswith("/api/")
         if "user_id" not in session:
+            if is_api:
+                return jsonify({"error": "Not authenticated"}), 401
+            return redirect(url_for("login_page"))
+        # Guard against stale session after DB wipe (Render ephemeral filesystem)
+        if User.query.get(session["user_id"]) is None:
+            session.clear()
+            if is_api:
+                return jsonify({"error": "Session expired — please sign in again"}), 401
+            flash("Your session expired — please sign in again.", "error")
             return redirect(url_for("login_page"))
         return f(*args, **kwargs)
     return decorated

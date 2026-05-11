@@ -804,6 +804,7 @@ function switchSettingsTab(tab) {
 async function loadProfileData() {
   try {
     const res  = await fetch("/api/profile");
+    if (res.status === 401) { window.location.href = "/login"; return; }
     const data = await res.json();
     const el = (id) => document.getElementById(id);
     if (el("profileNameDisplay"))  el("profileNameDisplay").textContent  = data.name;
