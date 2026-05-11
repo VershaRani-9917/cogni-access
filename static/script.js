@@ -324,7 +324,6 @@ function attachHoverTracking() {
       hoverData.push(parseFloat(t.toFixed(2)));
       if (hoverData.length > 50) hoverData.shift();
 
-      updateBehaviourPanel();
       updateBehaviorChart();
 
       trackBehavior({
@@ -350,7 +349,7 @@ async function trackBehavior(payload) {
     if (!res.ok) return;
     const data = await res.json();
     mlDataPoints = data.data_points;
-    document.getElementById("mlDataPoints").textContent = mlDataPoints;
+    updateBehaviourPanel();   // refresh panel after server confirms data saved
 
     // Update ML recommendation if model improved
     if (data.updated_recommendation && data.data_points >= 5) {

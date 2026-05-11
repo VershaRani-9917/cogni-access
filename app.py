@@ -44,6 +44,9 @@ FONT_MODEL_PATH  = os.path.join(BASE_DIR, "font_model.pkl")
 SPACE_MODEL_PATH = os.path.join(BASE_DIR, "spacing_model.pkl")
 DATASET_PATH     = os.path.join(BASE_DIR, "public_dataset.csv")
 
+# In-memory model cache — avoids reloading pkl from disk on every request
+_model_cache = {"font": None, "space": None, "n_pts": 0}
+
 # ── Auth Helper ───────────────────────────────────────────────────────────────
 def login_required(f):
     @wraps(f)
@@ -336,12 +339,20 @@ def train_models():
     if df is None:
         return False
     X = df[["word_length", "hover_time"]].values
-    rf_font = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_font = RandomForestRegressor(n_estimators=20, random_state=42)
     rf_font.fit(X, df["font_size"].values)
-    joblib.dump(rf_font, FONT_MODEL_PATH)
-    rf_space = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_space = RandomForestRegressor(n_estimators=20, random_state=42)
     rf_space.fit(X, df["line_spacing"].values)
-    joblib.dump(rf_space, SPACE_MODEL_PATH)
+    # cache in memory
+    _model_cache["font"]  = rf_font
+    _model_cache["space"] = rf_space
+    _model_cache["n_pts"] = len(df)
+    # persist to disk (best-effort)
+    try:
+        joblib.dump(rf_font,  FONT_MODEL_PATH)
+        joblib.dump(rf_space, SPACE_MODEL_PATH)
+    except Exception:
+        pass
     return True
 
 def train_and_predict():
@@ -350,21 +361,30 @@ def train_and_predict():
     if df is None:
         return defaults, 0
 
-    if not os.path.exists(FONT_MODEL_PATH):
-        if not train_models():
-            return defaults, len(df)
+    n_pts = len(df)
+
+    # Use cached model if already trained
+    if _model_cache["font"] is None:
+        # Try loading from disk first
+        if os.path.exists(FONT_MODEL_PATH) and os.path.exists(SPACE_MODEL_PATH):
+            try:
+                _model_cache["font"]  = joblib.load(FONT_MODEL_PATH)
+                _model_cache["space"] = joblib.load(SPACE_MODEL_PATH)
+            except Exception:
+                pass
+        # If still None, train now
+        if _model_cache["font"] is None:
+            if not train_models():
+                return defaults, n_pts
 
     try:
-        rf_font  = joblib.load(FONT_MODEL_PATH)
-        rf_space = joblib.load(SPACE_MODEL_PATH)
+        x = np.array([[df["word_length"].mean(), df["hover_time"].mean()]])
+        font  = max(14, min(40, round(float(_model_cache["font"].predict(x)[0]),  1)))
+        space = max(1.0, min(3.0, round(float(_model_cache["space"].predict(x)[0]), 2)))
     except Exception:
-        return defaults, len(df)
+        return defaults, n_pts
 
-    x = np.array([[df["word_length"].mean(), df["hover_time"].mean()]])
-    font  = max(14, min(40, round(float(rf_font.predict(x)[0]),  1)))
-    space = max(1.0, min(3.0, round(float(rf_space.predict(x)[0]), 2)))
-
-    return {"font_size": font, "line_spacing": space}, len(df)
+    return {"font_size": font, "line_spacing": space}, n_pts
 
 # ── Auth Routes ────────────────────────────────────────────────────────────────
 @app.route("/login", methods=["GET", "POST"])
@@ -423,12 +443,17 @@ def analyze():
     if not raw_text:
         return jsonify({"error": "No text provided"}), 400
 
-    processed      = preprocess_text(raw_text)
+    processed       = preprocess_text(raw_text)
     difficult_words = detect_difficult_words(processed["alpha_words"])
     highlighted     = build_highlighted_html(processed["cleaned_text"], difficult_words)
     simplified      = build_tooltip_html(processed["cleaned_text"], difficult_words)
-    rec, n_pts      = train_and_predict()
     sources         = list(set(v["source"] for v in difficult_words.values()))
+    # Use cached recommendation — avoids slow DB query on every analyze
+    if _model_cache["font"] is not None:
+        rec, n_pts = train_and_predict()
+    else:
+        rec    = {"font_size": 20, "line_spacing": 1.5}
+        n_pts  = _model_cache["n_pts"]
 
     record = TextAnalysis(
         session_id=session_id,
@@ -476,10 +501,17 @@ def track_behavior():
     db.session.commit()
 
     count = UserBehavior.query.count()
-    if count % 5 == 0:
-        train_models()
+    retrained = False
+    if count % 10 == 0:
+        retrained = train_models()
 
-    rec, n_pts = train_and_predict()
+    # Only recompute recommendation when retrained or cache is warm
+    if retrained or _model_cache["font"] is not None:
+        rec, n_pts = train_and_predict()
+    else:
+        rec   = {"font_size": 20, "line_spacing": 1.5}
+        n_pts = count
+
     return jsonify({"status": "ok", "data_points": n_pts, "updated_recommendation": rec})
 
 @app.route("/get_recommendation", methods=["GET"])
