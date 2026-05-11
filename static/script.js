@@ -3,6 +3,23 @@
    Real-time analysis, hover tracking, charts, PWA, dark mode
    ================================================================ */
 
+// ── Cold-start detection ────────────────────────────────────────
+(function coldStartCheck() {
+  const banner = document.getElementById("coldStartBanner");
+  if (!banner) return;
+  const start = Date.now();
+  fetch("/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "ping", session_id: "warmup" }) })
+    .then(() => { banner.style.display = "none"; })
+    .catch(() => {
+      if (Date.now() - start > 2000) banner.style.display = "block";
+    });
+  setTimeout(() => {
+    fetch("/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "ping", session_id: "warmup" }) })
+      .then(() => { banner.style.display = "none"; })
+      .catch(() => {});
+  }, 3000);
+})();
+
 // ── Session & State ────────────────────────────────────────────
 const SESSION_ID = (() => {
   let id = sessionStorage.getItem("ca_session");
@@ -169,7 +186,7 @@ async function analyzeText(silent = false) {
     // Hide live indicator after analysis done
     document.getElementById("liveIndicator")?.classList.add("hidden");
   } catch (err) {
-    if (!silent) alert("Analysis failed. Make sure the Flask server is running on port 5001.");
+    if (!silent) alert("Analysis failed. The server may be starting up — please wait 30 seconds and try again.");
     console.error(err);
   } finally {
     if (!silent) showLoading(false);
