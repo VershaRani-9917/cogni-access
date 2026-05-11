@@ -548,5 +548,67 @@ def dashboard_stats():
         "hover_data": hovers[-20:],
     })
 
+# ── User Settings API ─────────────────────────────────────────────────────────
+@app.route("/api/profile", methods=["GET"])
+@login_required
+def api_profile():
+    user = User.query.get(session["user_id"])
+    return jsonify({
+        "name":           user.name,
+        "email":          user.email,
+        "created_at":     user.created_at.strftime("%B %Y"),
+        "analysis_count": TextAnalysis.query.count(),
+        "behavior_count": UserBehavior.query.count(),
+    })
+
+@app.route("/api/update_name", methods=["POST"])
+@login_required
+def api_update_name():
+    name = request.get_json(force=True).get("name", "").strip()
+    if not name:
+        return jsonify({"error": "Name cannot be empty"}), 400
+    user = User.query.get(session["user_id"])
+    user.name = name
+    db.session.commit()
+    session["user_name"] = name
+    return jsonify({"ok": True, "name": name})
+
+@app.route("/api/change_password", methods=["POST"])
+@login_required
+def api_change_password():
+    data    = request.get_json(force=True)
+    current = data.get("current_password", "")
+    new_pw  = data.get("new_password", "")
+    user = User.query.get(session["user_id"])
+    if not check_password_hash(user.password_hash, current):
+        return jsonify({"error": "Current password is incorrect"}), 400
+    if len(new_pw) < 6:
+        return jsonify({"error": "New password must be at least 6 characters"}), 400
+    user.password_hash = generate_password_hash(new_pw, method="pbkdf2:sha256")
+    db.session.commit()
+    return jsonify({"ok": True})
+
+@app.route("/api/clear_behavior_data", methods=["POST"])
+@login_required
+def api_clear_behavior_data():
+    UserBehavior.query.delete()
+    db.session.commit()
+    _model_cache["font"]  = None
+    _model_cache["space"] = None
+    _model_cache["n_pts"] = 0
+    return jsonify({"ok": True})
+
+@app.route("/api/delete_account", methods=["POST"])
+@login_required
+def api_delete_account():
+    password = request.get_json(force=True).get("password", "")
+    user = User.query.get(session["user_id"])
+    if not check_password_hash(user.password_hash, password):
+        return jsonify({"error": "Incorrect password"}), 400
+    db.session.delete(user)
+    db.session.commit()
+    session.clear()
+    return jsonify({"ok": True})
+
 if __name__ == "__main__":
     app.run(debug=True, port=5001)

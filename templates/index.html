@@ -49,10 +49,10 @@
           <i class="fas fa-moon" id="themeIcon"></i>
           <span id="themeLabel">Dark</span>
         </button>
-        <div class="nav-user-chip">
-          <i class="fas fa-user-circle"></i>
-          <span class="nav-username">{{ user_name }}</span>
-        </div>
+        <button class="nav-user-chip" id="profileBtn" onclick="openSettings()" title="Account Settings" aria-label="Account Settings">
+          <span class="user-avatar" id="navAvatar">{{ user_name[0]|upper }}</span>
+          <span class="nav-username" id="navUsername">{{ user_name }}</span>
+        </button>
         <a href="/logout" class="nav-btn nav-btn-logout" title="Sign out" aria-label="Sign out">
           <i class="fas fa-right-from-bracket"></i>
           <span>Logout</span>
@@ -506,6 +506,161 @@
       <p class="footer-copy">© 2026 CogniAccess — Making Text Accessible for Everyone</p>
     </div>
   </footer>
+
+  <!-- ===== SETTINGS MODAL ===== -->
+  <div id="settingsModal" class="modal" style="display:none" role="dialog" aria-modal="true" aria-label="Account Settings">
+    <div class="modal-backdrop" onclick="closeSettings()"></div>
+    <div class="modal-panel settings-panel">
+      <div class="modal-header">
+        <h2><i class="fas fa-gear" aria-hidden="true"></i> Settings</h2>
+        <button class="modal-close" onclick="closeSettings()" aria-label="Close settings">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="settings-tabs" role="tablist">
+        <button class="stab stab-active" id="stab-btn-profile" onclick="switchSettingsTab('profile')" role="tab" aria-selected="true">
+          <i class="fas fa-user" aria-hidden="true"></i> Profile
+        </button>
+        <button class="stab" id="stab-btn-prefs" onclick="switchSettingsTab('prefs')" role="tab" aria-selected="false">
+          <i class="fas fa-sliders" aria-hidden="true"></i> Preferences
+        </button>
+        <button class="stab" id="stab-btn-privacy" onclick="switchSettingsTab('privacy')" role="tab" aria-selected="false">
+          <i class="fas fa-shield-halved" aria-hidden="true"></i> Privacy
+        </button>
+      </div>
+
+      <div class="settings-body modal-body">
+
+        <!-- ── Profile Tab ── -->
+        <div id="stab-profile" class="settings-section" role="tabpanel">
+          <div class="profile-header-row">
+            <div class="profile-big-avatar" id="settingsAvatar">V</div>
+            <div class="profile-header-info">
+              <p class="profile-name-display" id="profileNameDisplay">—</p>
+              <p class="profile-email-display" id="profileEmailDisplay">—</p>
+              <p class="profile-joined" id="profileJoined">—</p>
+            </div>
+          </div>
+          <div class="settings-form-group">
+            <label class="sf-label" for="settingsName">Display Name</label>
+            <div class="settings-input-row">
+              <input type="text" id="settingsName" class="settings-input" placeholder="Your name" autocomplete="name" />
+              <button class="btn btn-sm btn-primary" onclick="saveProfileName()">Save</button>
+            </div>
+            <p class="settings-msg" id="nameMsg"></p>
+          </div>
+          <hr class="settings-divider" />
+          <div class="settings-form-group">
+            <label class="sf-label">Change Password</label>
+            <input type="password" id="settingsCurrPw" class="settings-input" placeholder="Current password" autocomplete="current-password" />
+            <input type="password" id="settingsNewPw"  class="settings-input" placeholder="New password (min 6 characters)" autocomplete="new-password" style="margin-top:8px" />
+            <input type="password" id="settingsConfPw" class="settings-input" placeholder="Confirm new password" autocomplete="new-password" style="margin-top:8px" />
+            <button class="btn btn-sm btn-primary" onclick="savePassword()" style="margin-top:10px">Update Password</button>
+            <p class="settings-msg" id="pwMsg"></p>
+          </div>
+        </div>
+
+        <!-- ── Preferences Tab ── -->
+        <div id="stab-prefs" class="settings-section" role="tabpanel" style="display:none">
+          <p class="settings-section-note">Settings are saved on this device.</p>
+          <div class="pref-row">
+            <span class="pref-label"><i class="fas fa-moon" aria-hidden="true"></i> Theme</span>
+            <div class="pref-theme-btns">
+              <button class="theme-opt" id="prefLight" onclick="setTheme('light')"><i class="fas fa-sun"></i> Light</button>
+              <button class="theme-opt" id="prefDark"  onclick="setTheme('dark')"><i class="fas fa-moon"></i> Dark</button>
+            </div>
+          </div>
+          <div class="pref-row">
+            <span class="pref-label"><i class="fas fa-font" aria-hidden="true"></i> Reading Font</span>
+            <select id="prefFontFace" class="font-select" onchange="changeFont(this.value)" aria-label="Choose reading font">
+              <option value="inter">Default (Inter)</option>
+              <option value="opendyslexic">OpenDyslexic</option>
+              <option value="atkinson">Atkinson Hyperlegible</option>
+              <option value="lexend">Lexend</option>
+              <option value="comic">Comic Neue</option>
+            </select>
+          </div>
+          <div class="pref-row">
+            <span class="pref-label"><i class="fas fa-text-height" aria-hidden="true"></i> Font Size</span>
+            <div class="pref-slider-wrap">
+              <input type="range" id="prefFontSize" class="slider" min="14" max="40" value="20" oninput="prefSyncFontSize()" aria-label="Font size" />
+              <span id="prefFontSizeVal" class="pref-val">20px</span>
+            </div>
+          </div>
+          <div class="pref-row">
+            <span class="pref-label"><i class="fas fa-align-justify" aria-hidden="true"></i> Line Spacing</span>
+            <div class="pref-slider-wrap">
+              <input type="range" id="prefLineSpacing" class="slider" min="1.0" max="3.0" step="0.1" value="1.5" oninput="prefSyncLineSpacing()" aria-label="Line spacing" />
+              <span id="prefLineSpacingVal" class="pref-val">1.5</span>
+            </div>
+          </div>
+          <hr class="settings-divider" />
+          <div class="pref-row">
+            <span class="pref-label"><i class="fas fa-circle-half-stroke" aria-hidden="true"></i> High Contrast</span>
+            <label class="toggle" aria-label="Toggle high contrast">
+              <input type="checkbox" id="prefHighContrast" onchange="syncPrefHighContrast()" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="pref-row">
+            <span class="pref-label"><i class="fas fa-wind" aria-hidden="true"></i> Reduce Motion</span>
+            <label class="toggle" aria-label="Toggle reduce motion">
+              <input type="checkbox" id="prefReduceMotion" onchange="syncPrefReduceMotion()" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="pref-row">
+            <span class="pref-label"><i class="fas fa-arrow-pointer" aria-hidden="true"></i> Large Cursor</span>
+            <label class="toggle" aria-label="Toggle large cursor">
+              <input type="checkbox" id="prefLargeCursor" onchange="syncPrefLargeCursor()" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- ── Privacy Tab ── -->
+        <div id="stab-privacy" class="settings-section" role="tabpanel" style="display:none">
+          <p class="settings-section-note">Your data stored in CogniAccess.</p>
+          <div class="privacy-stats">
+            <div class="priv-stat">
+              <span class="priv-val" id="privAnalyses">—</span>
+              <span class="priv-label">Analyses performed</span>
+            </div>
+            <div class="priv-stat">
+              <span class="priv-val" id="privBehaviors">—</span>
+              <span class="priv-label">Behaviour events</span>
+            </div>
+          </div>
+          <div class="priv-action">
+            <div class="priv-action-info">
+              <strong>Clear Behaviour Data</strong>
+              <span>Removes all hover tracking data and resets the ML model.</span>
+            </div>
+            <button class="btn btn-sm btn-warn" onclick="confirmClearData()">Clear</button>
+          </div>
+          <div class="priv-action priv-action-danger">
+            <div class="priv-action-info">
+              <strong>Delete Account</strong>
+              <span>Permanently removes your account. This cannot be undone.</span>
+            </div>
+            <button class="btn btn-sm btn-danger" onclick="showDeleteConfirm()">Delete</button>
+          </div>
+          <div id="deleteConfirmBox" class="delete-confirm-box" style="display:none">
+            <p>Enter your password to confirm:</p>
+            <input type="password" id="deleteConfirmPw" class="settings-input" placeholder="Your password" />
+            <div class="delete-confirm-actions">
+              <button class="btn btn-sm btn-danger" onclick="deleteAccount()">Yes, delete my account</button>
+              <button class="btn btn-sm" onclick="hideDeleteConfirm()">Cancel</button>
+            </div>
+            <p class="settings-msg" id="deleteMsg"></p>
+          </div>
+          <p class="settings-msg" id="privacyMsg"></p>
+        </div>
+
+      </div><!-- end settings-body -->
+    </div><!-- end settings-panel -->
+  </div><!-- end settingsModal -->
 
   <script src="/static/script.js"></script>
 </body>

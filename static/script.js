@@ -113,6 +113,9 @@ function setTheme(theme, save = true) {
   if (icon)  icon.className  = theme === "dark" ? "fas fa-sun" : "fas fa-moon";
   if (label) label.textContent = theme === "dark" ? "Light" : "Dark";
   if (save) localStorage.setItem("ca_theme", theme);
+  // Sync pref-tab theme buttons
+  document.getElementById("prefLight")?.classList.toggle("theme-opt-active", theme === "light");
+  document.getElementById("prefDark")?.classList.toggle("theme-opt-active",  theme === "dark");
 }
 
 document.getElementById("themeBtn")?.addEventListener("click", () => {
@@ -766,4 +769,221 @@ function toggleAccessPanel() {
 function closeAccessPanel() {
   const panel = document.getElementById("accessPanel");
   if (panel) panel.style.display = "none";
+}
+
+// ── SETTINGS MODAL ─────────────────────────────────────────────
+function openSettings() {
+  const modal = document.getElementById("settingsModal");
+  if (!modal) return;
+  modal.style.display = "flex";
+  document.body.style.overflow = "hidden";
+  switchSettingsTab("profile");
+  loadProfileData();
+  syncPrefSliders();
+}
+
+function closeSettings() {
+  const modal = document.getElementById("settingsModal");
+  if (modal) modal.style.display = "none";
+  document.body.style.overflow = "";
+}
+
+function switchSettingsTab(tab) {
+  ["profile", "prefs", "privacy"].forEach(t => {
+    const sec = document.getElementById(`stab-${t}`);
+    const btn = document.getElementById(`stab-btn-${t}`);
+    if (sec) sec.style.display = t === tab ? "block" : "none";
+    if (btn) {
+      btn.classList.toggle("stab-active", t === tab);
+      btn.setAttribute("aria-selected", t === tab ? "true" : "false");
+    }
+  });
+  if (tab === "privacy") loadPrivacyStats();
+}
+
+async function loadProfileData() {
+  try {
+    const res  = await fetch("/api/profile");
+    const data = await res.json();
+    const el = (id) => document.getElementById(id);
+    if (el("profileNameDisplay"))  el("profileNameDisplay").textContent  = data.name;
+    if (el("profileEmailDisplay")) el("profileEmailDisplay").textContent = data.email;
+    if (el("profileJoined"))       el("profileJoined").textContent       = `Member since ${data.created_at}`;
+    if (el("settingsName"))        el("settingsName").value              = data.name;
+    if (el("settingsAvatar"))      el("settingsAvatar").textContent      = data.name.charAt(0).toUpperCase();
+  } catch (_) {}
+}
+
+async function saveProfileName() {
+  const name = document.getElementById("settingsName")?.value.trim();
+  const msg  = document.getElementById("nameMsg");
+  if (!name) { setSettingsMsg(msg, "Name cannot be empty.", false); return; }
+  try {
+    const res  = await fetch("/api/update_name", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (data.error) { setSettingsMsg(msg, data.error, false); return; }
+    setSettingsMsg(msg, "Name updated!", true);
+    document.getElementById("profileNameDisplay").textContent = data.name;
+    document.getElementById("settingsAvatar").textContent     = data.name.charAt(0).toUpperCase();
+    const navName   = document.getElementById("navUsername");
+    const navAvatar = document.getElementById("navAvatar");
+    if (navName)   navName.textContent   = data.name;
+    if (navAvatar) navAvatar.textContent = data.name.charAt(0).toUpperCase();
+  } catch (_) { setSettingsMsg(msg, "Failed to update. Please try again.", false); }
+}
+
+async function savePassword() {
+  const curr  = document.getElementById("settingsCurrPw")?.value;
+  const newPw = document.getElementById("settingsNewPw")?.value;
+  const conf  = document.getElementById("settingsConfPw")?.value;
+  const msg   = document.getElementById("pwMsg");
+  if (!curr || !newPw) { setSettingsMsg(msg, "All fields are required.", false); return; }
+  if (newPw !== conf)  { setSettingsMsg(msg, "Passwords do not match.", false);   return; }
+  try {
+    const res  = await fetch("/api/change_password", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: curr, new_password: newPw }),
+    });
+    const data = await res.json();
+    if (data.error) { setSettingsMsg(msg, data.error, false); return; }
+    setSettingsMsg(msg, "Password updated successfully!", true);
+    ["settingsCurrPw", "settingsNewPw", "settingsConfPw"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+  } catch (_) { setSettingsMsg(msg, "Failed to update password.", false); }
+}
+
+async function loadPrivacyStats() {
+  try {
+    const res  = await fetch("/api/profile");
+    const data = await res.json();
+    const pa = document.getElementById("privAnalyses");
+    const pb = document.getElementById("privBehaviors");
+    if (pa) pa.textContent = data.analysis_count;
+    if (pb) pb.textContent = data.behavior_count;
+  } catch (_) {}
+}
+
+async function confirmClearData() {
+  if (!confirm("This will delete all hover tracking data and reset the ML model. Are you sure?")) return;
+  const msg = document.getElementById("privacyMsg");
+  try {
+    const res  = await fetch("/api/clear_behavior_data", { method: "POST" });
+    const data = await res.json();
+    if (data.ok) {
+      setSettingsMsg(msg, "Behaviour data cleared.", true);
+      loadPrivacyStats();
+      totalHovers = 0; totalHoverTime = 0; sessionEvents = 0; mlDataPoints = 0;
+      updateBehaviourPanel();
+    }
+  } catch (_) { setSettingsMsg(msg, "Failed to clear data.", false); }
+}
+
+function showDeleteConfirm() {
+  const box = document.getElementById("deleteConfirmBox");
+  if (box) box.style.display = "block";
+}
+function hideDeleteConfirm() {
+  const box = document.getElementById("deleteConfirmBox");
+  if (box) box.style.display = "none";
+  const pw  = document.getElementById("deleteConfirmPw");
+  const msg = document.getElementById("deleteMsg");
+  if (pw)  pw.value = "";
+  if (msg) msg.textContent = "";
+}
+
+async function deleteAccount() {
+  const pw  = document.getElementById("deleteConfirmPw")?.value;
+  const msg = document.getElementById("deleteMsg");
+  if (!pw) { setSettingsMsg(msg, "Enter your password.", false); return; }
+  try {
+    const res  = await fetch("/api/delete_account", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: pw }),
+    });
+    const data = await res.json();
+    if (data.error) { setSettingsMsg(msg, data.error, false); return; }
+    window.location.href = "/login";
+  } catch (_) { setSettingsMsg(msg, "Failed. Please try again.", false); }
+}
+
+function syncPrefSliders() {
+  const fs = document.getElementById("prefFontSize");
+  const fv = document.getElementById("prefFontSizeVal");
+  if (fs) fs.value = currentFontSize;
+  if (fv) fv.textContent = currentFontSize + "px";
+
+  const ls = document.getElementById("prefLineSpacing");
+  const lv = document.getElementById("prefLineSpacingVal");
+  if (ls) ls.value = currentLineSpacing;
+  if (lv) lv.textContent = parseFloat(currentLineSpacing).toFixed(1);
+
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  document.getElementById("prefLight")?.classList.toggle("theme-opt-active", !isDark);
+  document.getElementById("prefDark")?.classList.toggle("theme-opt-active",   isDark);
+
+  const ff = localStorage.getItem("ca_font_face") || "inter";
+  const pfSel = document.getElementById("prefFontFace");
+  if (pfSel) pfSel.value = ff;
+
+  const hcEl = document.getElementById("prefHighContrast");
+  const rmEl = document.getElementById("prefReduceMotion");
+  const lcEl = document.getElementById("prefLargeCursor");
+  if (hcEl) hcEl.checked = document.body.classList.contains("high-contrast");
+  if (rmEl) rmEl.checked = document.body.classList.contains("reduce-motion");
+  if (lcEl) lcEl.checked = document.body.classList.contains("large-cursor");
+}
+
+function prefSyncFontSize() {
+  const val = document.getElementById("prefFontSize")?.value;
+  if (!val) return;
+  document.getElementById("prefFontSizeVal").textContent = val + "px";
+  const sl = document.getElementById("fontSlider");
+  if (sl) sl.value = val;
+  currentFontSize = parseInt(val, 10);
+  document.getElementById("fontValue").textContent = val + "px";
+  applyFontToOutputs();
+  saveDisplayPrefs();
+}
+
+function prefSyncLineSpacing() {
+  const val = document.getElementById("prefLineSpacing")?.value;
+  if (!val) return;
+  document.getElementById("prefLineSpacingVal").textContent = parseFloat(val).toFixed(1);
+  const sl = document.getElementById("spacingSlider");
+  if (sl) sl.value = val;
+  currentLineSpacing = parseFloat(val);
+  document.getElementById("spacingValue").textContent = parseFloat(val).toFixed(1);
+  applyFontToOutputs();
+  saveDisplayPrefs();
+}
+
+function syncPrefHighContrast() {
+  const on = document.getElementById("prefHighContrast")?.checked;
+  document.body.classList.toggle("high-contrast", on);
+  const main = document.getElementById("highContrast");
+  if (main) main.checked = on;
+}
+function syncPrefReduceMotion() {
+  const on = document.getElementById("prefReduceMotion")?.checked;
+  document.body.classList.toggle("reduce-motion", on);
+  const main = document.getElementById("reduceMotion");
+  if (main) main.checked = on;
+}
+function syncPrefLargeCursor() {
+  const on = document.getElementById("prefLargeCursor")?.checked;
+  document.body.classList.toggle("large-cursor", on);
+  const main = document.getElementById("largeCursor");
+  if (main) main.checked = on;
+}
+
+function setSettingsMsg(el, text, ok) {
+  if (!el) return;
+  el.textContent  = text;
+  el.className    = ok ? "settings-msg settings-msg-ok" : "settings-msg settings-msg-err";
+  if (ok) setTimeout(() => { el.textContent = ""; el.className = "settings-msg"; }, 3500);
 }
