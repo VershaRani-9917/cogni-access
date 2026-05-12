@@ -117,6 +117,10 @@
             <span class="hint"><i class="fas fa-microphone"></i> Click mic to speak</span>
           </div>
           <div class="input-actions">
+            <button class="btn btn-ghost" onclick="clearInput()" title="Clear text" aria-label="Clear input text">
+              <i class="fas fa-trash-can" aria-hidden="true"></i>
+              <span>Clear</span>
+            </button>
             <button id="micBtn" class="btn btn-mic" onclick="toggleMic()" title="Speak your text aloud" aria-label="Toggle voice input">
               <i class="fas fa-microphone" id="micIcon" aria-hidden="true"></i>
               <span id="micLabel">Speak</span>
@@ -327,7 +331,14 @@
       <div class="card text-card">
         <div class="card-header">
           <h2 class="card-title"><i class="fas fa-lightbulb" aria-hidden="true"></i>Simplified Text</h2>
-          <span class="card-pill">Hover words for definitions</span>
+          <div class="card-header-actions">
+            <button class="btn btn-sm btn-action-copy" onclick="copySimplified()" title="Copy simplified text" aria-label="Copy simplified text">
+              <i class="fas fa-copy" aria-hidden="true"></i> Copy
+            </button>
+            <button class="btn btn-sm btn-action-copy" onclick="exportText()" title="Download as .txt" aria-label="Download as text file">
+              <i class="fas fa-download" aria-hidden="true"></i> Export
+            </button>
+          </div>
         </div>
         <div id="simplifiedTextOutput" class="text-output tooltip-host" role="region" aria-label="Simplified text with definitions"></div>
       </div>
@@ -501,7 +512,7 @@
         <i class="fas fa-brain" aria-hidden="true"></i> CogniAccess
       </div>
       <div class="footer-tech">
-        <span>NLTK</span><span>WordNet</span><span>scikit-learn</span><span>SQLite</span><span>Chart.js</span>
+        <span>NLTK</span><span>WordNet</span><span>scikit-learn</span><span>PostgreSQL</span><span>Chart.js</span>
       </div>
       <p class="footer-copy">© 2026 CogniAccess — Making Text Accessible for Everyone</p>
     </div>
@@ -661,6 +672,9 @@
       </div><!-- end settings-body -->
     </div><!-- end settings-panel -->
   </div><!-- end settingsModal -->
+
+  <!-- Toast notification -->
+  <div id="toastNotif" class="toast-notif" style="display:none" role="status" aria-live="polite"></div>
 
   <script src="/static/script.js"></script>
 </body>

@@ -3,6 +3,24 @@
    Real-time analysis, hover tracking, charts, PWA, dark mode
    ================================================================ */
 
+// ── Toast notification ─────────────────────────────────────────
+function showToast(msg, type = "info", duration = 3500) {
+  const toast = document.getElementById("toastNotif");
+  if (!toast) return;
+  clearTimeout(toast._tid);
+  toast.textContent = msg;
+  toast.className   = `toast-notif toast-${type}`;
+  toast.style.display  = "block";
+  toast.style.opacity  = "1";
+  toast._tid = setTimeout(() => {
+    toast.style.opacity = "0";
+    setTimeout(() => { toast.style.display = "none"; }, 320);
+  }, duration);
+}
+
+// ── Keep server warm (Render free tier sleeps after 15 min) ────
+setInterval(() => { fetch("/ping").catch(() => {}); }, 600000);
+
 // ── Cold-start detection ────────────────────────────────────────
 (function coldStartCheck() {
   const banner = document.getElementById("coldStartBanner");
@@ -176,20 +194,22 @@ async function analyzeText(silent = false) {
   stopSpeak();
 
   try {
-    const res  = await fetch("/analyze", {
+    const res = await fetch("/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, session_id: SESSION_ID }),
     });
-    if (!res.ok) throw new Error(`Server ${res.status}`);
+    if (!res.ok) {
+      let errMsg = `Server error (${res.status}) — please wait 30 seconds and try again.`;
+      try { const j = await res.json(); if (j.error) errMsg = j.error; } catch (_) {}
+      throw new Error(errMsg);
+    }
     const data = await res.json();
     renderResults(data);
     showResultSections();
-
-    // Hide live indicator after analysis done
     document.getElementById("liveIndicator")?.classList.add("hidden");
   } catch (err) {
-    if (!silent) alert("Analysis failed. The server may be starting up — please wait 30 seconds and try again.");
+    if (!silent) showToast(err.message || "Analysis failed — please wait 30 seconds and try again.", "error", 6000);
     console.error(err);
   } finally {
     if (!silent) showLoading(false);
@@ -271,6 +291,49 @@ function renderResults(data) {
   applyFontToOutputs();
   attachHoverTracking();
   updateBehaviourPanel();
+}
+
+// ── COPY / EXPORT / CLEAR ──────────────────────────────────────
+async function copySimplified() {
+  const el = document.getElementById("simplifiedTextOutput");
+  if (!el || !el.textContent.trim()) { showToast("Nothing to copy — run analysis first.", "info"); return; }
+  const text = el.innerText || el.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Simplified text copied to clipboard!", "ok");
+  } catch (_) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    Object.assign(ta.style, { position: "fixed", opacity: "0" });
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    showToast("Text copied!", "ok");
+  }
+}
+
+function exportText() {
+  const el = document.getElementById("simplifiedTextOutput");
+  if (!el || !el.textContent.trim()) { showToast("Nothing to export — run analysis first.", "info"); return; }
+  const text = el.innerText || el.textContent;
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement("a"), { href: url, download: "cogni_simplified.txt" });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast("Text exported as cogni_simplified.txt", "ok");
+}
+
+function clearInput() {
+  const ta = document.getElementById("inputText");
+  if (ta) { ta.value = ""; ta.dispatchEvent(new Event("input")); ta.focus(); }
+  ["statsBar", "resultsGrid", "textOutputArea", "behaviorPanel"].forEach(id => {
+    document.getElementById(id)?.classList.add("hidden");
+  });
+  stopSpeak();
 }
 
 // ── SHOW / HIDE ────────────────────────────────────────────────

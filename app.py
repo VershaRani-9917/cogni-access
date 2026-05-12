@@ -652,5 +652,9 @@ def api_delete_account():
     session.clear()
     return jsonify({"ok": True})
 
+@app.route("/ping")
+def ping():
+    return jsonify({"status": "ok"}), 200
+
 if __name__ == "__main__":
     app.run(debug=True, port=5001)

@@ -1773,3 +1773,48 @@ mark.highlight-word:hover::after { opacity: 1; }
   color: var(--text-secondary);
   border: 1.5px solid var(--card-border);
 }
+.btn-action-copy {
+  background: rgba(8,145,178,0.10) !important;
+  color: var(--brand-1) !important;
+  border: 1.5px solid rgba(8,145,178,0.25) !important;
+}
+.btn-action-copy:hover { background: rgba(8,145,178,0.18) !important; }
+
+/* Ghost button (clear input) */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1.5px solid var(--card-border);
+}
+.btn-ghost:hover { color: var(--clr-hard); border-color: rgba(239,68,68,0.4); }
+
+/* Card header with action buttons */
+.card-header-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Toast notification */
+.toast-notif {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 28px;
+  border-radius: 50px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  z-index: 9999;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+  white-space: nowrap;
+  max-width: 90vw;
+  text-align: center;
+}
+.toast-ok    { background: var(--clr-easy); color: #fff; }
+.toast-error { background: var(--clr-hard); color: #fff; }
+.toast-info  { background: var(--text-primary); color: var(--card-bg); }
