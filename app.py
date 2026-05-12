@@ -18,16 +18,12 @@ from sklearn.ensemble import RandomForestRegressor
 from nltk.corpus import stopwords, wordnet
 from nltk.tokenize import sent_tokenize, word_tokenize
 
-for resource in ["punkt", "punkt_tab", "stopwords", "wordnet", "averaged_perceptron_tagger"]:
+for _res in ["punkt", "punkt_tab", "stopwords", "wordnet",
+             "averaged_perceptron_tagger", "averaged_perceptron_tagger_eng"]:
     try:
-        if resource.startswith("punkt"):
-            nltk.data.find(f"tokenizers/{resource}")
-        elif resource == "averaged_perceptron_tagger":
-            nltk.data.find(f"taggers/{resource}")
-        else:
-            nltk.data.find(f"corpora/{resource}")
-    except LookupError:
-        nltk.download(resource, quiet=True)
+        nltk.download(_res, quiet=True, raise_on_error=False)
+    except Exception:
+        pass
 
 app = Flask(__name__)
 CORS(app)
@@ -473,18 +469,21 @@ def analyze():
         rec    = {"font_size": 20, "line_spacing": 1.5}
         n_pts  = _model_cache["n_pts"]
 
-    record = TextAnalysis(
-        session_id=session_id,
-        text_preview=raw_text[:300],
-        difficulty_score=processed["difficulty_score"],
-        difficulty_level=processed["difficulty_level"],
-        word_count=len(processed["alpha_words"]),
-        sentence_count=len(processed["sentences"]),
-        difficult_word_count=len(difficult_words),
-        readability_grade=processed["flesch_grade"],
-    )
-    db.session.add(record)
-    db.session.commit()
+    try:
+        record = TextAnalysis(
+            session_id=session_id,
+            text_preview=raw_text[:300],
+            difficulty_score=processed["difficulty_score"],
+            difficulty_level=processed["difficulty_level"],
+            word_count=len(processed["alpha_words"]),
+            sentence_count=len(processed["sentences"]),
+            difficult_word_count=len(difficult_words),
+            readability_grade=processed["flesch_grade"],
+        )
+        db.session.add(record)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
     return jsonify({
         "difficulty_score":    processed["difficulty_score"],
@@ -506,17 +505,20 @@ def analyze():
 @app.route("/track_behavior", methods=["POST"])
 def track_behavior():
     data = request.get_json(force=True)
-    record = UserBehavior(
-        session_id=data.get("session_id", str(uuid.uuid4())),
-        word=data.get("word", ""),
-        word_length=data.get("word_length", 0),
-        hover_time=data.get("hover_time", 0),
-        font_size=data.get("font_size", 20),
-        line_spacing=data.get("line_spacing", 1.5),
-        difficulty_level=data.get("difficulty_level", ""),
-    )
-    db.session.add(record)
-    db.session.commit()
+    try:
+        record = UserBehavior(
+            session_id=data.get("session_id", str(uuid.uuid4())),
+            word=data.get("word", ""),
+            word_length=data.get("word_length", 0),
+            hover_time=data.get("hover_time", 0),
+            font_size=data.get("font_size", 20),
+            line_spacing=data.get("line_spacing", 1.5),
+            difficulty_level=data.get("difficulty_level", ""),
+        )
+        db.session.add(record)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
     count = UserBehavior.query.count()
     retrained = False
