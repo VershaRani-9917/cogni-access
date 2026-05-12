@@ -864,6 +864,68 @@ function switchSettingsTab(tab) {
   if (tab === "privacy") loadPrivacyStats();
 }
 
+// ── Avatar gradients (must match CSS .avatar-style-N) ─────────
+const AVATAR_GRADIENTS = [
+  "linear-gradient(135deg,#0891B2,#0C4A6E)",
+  "linear-gradient(135deg,#8B5CF6,#6D28D9)",
+  "linear-gradient(135deg,#F43F5E,#BE185D)",
+  "linear-gradient(135deg,#F59E0B,#D97706)",
+  "linear-gradient(135deg,#10B981,#065F46)",
+  "linear-gradient(135deg,#EF4444,#B91C1C)",
+  "linear-gradient(135deg,#6366F1,#3730A3)",
+  "linear-gradient(135deg,#F97316,#C2410C)",
+  "linear-gradient(135deg,#14B8A6,#0F766E)",
+  "linear-gradient(135deg,#EC4899,#9D174D)",
+];
+
+let _currentAvatarStyle = 0;
+
+function applyAvatarStyle(style) {
+  _currentAvatarStyle = style;
+  const cls = `avatar-style-${style}`;
+  ["navAvatar", "settingsAvatar"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = el.className.replace(/avatar-style-\d+/g, "").trim();
+    el.classList.add(cls);
+  });
+}
+
+function renderAvatarPicker(currentStyle, initial) {
+  const wrap = document.getElementById("avatarSwatches");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  AVATAR_GRADIENTS.forEach((grd, i) => {
+    const btn = document.createElement("button");
+    btn.className = `avatar-swatch avatar-style-${i}${i === currentStyle ? " avatar-swatch-active" : ""}`;
+    btn.textContent = initial;
+    btn.title = `Style ${i + 1}`;
+    btn.setAttribute("aria-label", `Avatar style ${i + 1}`);
+    btn.setAttribute("aria-pressed", i === currentStyle ? "true" : "false");
+    btn.onclick = () => selectAvatarStyle(i, initial);
+    wrap.appendChild(btn);
+  });
+}
+
+async function selectAvatarStyle(style, initial) {
+  applyAvatarStyle(style);
+  // Update active state on swatches
+  document.querySelectorAll(".avatar-swatch").forEach((btn, i) => {
+    btn.classList.toggle("avatar-swatch-active", i === style);
+    btn.setAttribute("aria-pressed", i === style ? "true" : "false");
+  });
+  const msg = document.getElementById("avatarMsg");
+  try {
+    const res  = await fetch("/api/update_avatar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ style }),
+    });
+    const data = await res.json();
+    if (data.error) { setSettingsMsg(msg, data.error, false); return; }
+    setSettingsMsg(msg, "Avatar updated!", true);
+  } catch (_) { setSettingsMsg(msg, "Failed to save.", false); }
+}
+
 async function loadProfileData() {
   try {
     const res  = await fetch("/api/profile");
@@ -874,7 +936,13 @@ async function loadProfileData() {
     if (el("profileEmailDisplay")) el("profileEmailDisplay").textContent = data.email;
     if (el("profileJoined"))       el("profileJoined").textContent       = `Member since ${data.created_at}`;
     if (el("settingsName"))        el("settingsName").value              = data.name;
-    if (el("settingsAvatar"))      el("settingsAvatar").textContent      = data.name.charAt(0).toUpperCase();
+    const initial = data.name.charAt(0).toUpperCase();
+    if (el("settingsAvatar")) {
+      el("settingsAvatar").textContent = initial;
+    }
+    const style = data.avatar_style ?? 0;
+    applyAvatarStyle(style);
+    renderAvatarPicker(style, initial);
   } catch (_) {}
 }
 
@@ -889,13 +957,16 @@ async function saveProfileName() {
     });
     const data = await res.json();
     if (data.error) { setSettingsMsg(msg, data.error, false); return; }
+    const initial = data.name.charAt(0).toUpperCase();
     setSettingsMsg(msg, "Name updated!", true);
     document.getElementById("profileNameDisplay").textContent = data.name;
-    document.getElementById("settingsAvatar").textContent     = data.name.charAt(0).toUpperCase();
+    document.getElementById("settingsAvatar").textContent     = initial;
     const navName   = document.getElementById("navUsername");
     const navAvatar = document.getElementById("navAvatar");
     if (navName)   navName.textContent   = data.name;
-    if (navAvatar) navAvatar.textContent = data.name.charAt(0).toUpperCase();
+    if (navAvatar) navAvatar.textContent = initial;
+    // Refresh swatch initials to match new name
+    document.querySelectorAll(".avatar-swatch").forEach(btn => { btn.textContent = initial; });
   } catch (_) { setSettingsMsg(msg, "Failed to update. Please try again.", false); }
 }
 

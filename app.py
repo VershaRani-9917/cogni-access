@@ -18,6 +18,7 @@ import joblib
 import textstat
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from sklearn.ensemble import RandomForestRegressor
@@ -84,6 +85,7 @@ class User(db.Model):
     email         = db.Column(db.String(150), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(256), nullable=False)
     created_at    = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    avatar_style  = db.Column(db.Integer, default=0)
 
 class UserBehavior(db.Model):
     __tablename__ = "user_behavior"
@@ -112,6 +114,13 @@ class TextAnalysis(db.Model):
 
 with app.app_context():
     db.create_all()
+    # Add avatar_style column to existing users table if it doesn't exist yet
+    try:
+        with db.engine.connect() as _conn:
+            _conn.execute(text("ALTER TABLE users ADD COLUMN avatar_style INTEGER DEFAULT 0"))
+            _conn.commit()
+    except Exception:
+        pass
 
 # ── Custom Dictionary ──────────────────────────────────────────────────────────
 CUSTOM_DICTIONARY = {
@@ -487,7 +496,11 @@ def logout():
 @app.route("/")
 @login_required
 def index():
-    return render_template("index.html", user_name=session.get("user_name", "User"))
+    user = User.query.get(session["user_id"])
+    return render_template("index.html",
+        user_name=session.get("user_name", "User"),
+        avatar_style=user.avatar_style if user and user.avatar_style is not None else 0,
+    )
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
@@ -624,7 +637,21 @@ def api_profile():
         "created_at":     user.created_at.strftime("%B %Y"),
         "analysis_count": TextAnalysis.query.count(),
         "behavior_count": UserBehavior.query.count(),
+        "avatar_style":   user.avatar_style if user.avatar_style is not None else 0,
     })
+
+@app.route("/api/update_avatar", methods=["POST"])
+@login_required
+def api_update_avatar():
+    style = request.get_json(force=True).get("style", 0)
+    try:
+        style = max(0, min(9, int(style)))
+    except (TypeError, ValueError):
+        style = 0
+    user = User.query.get(session["user_id"])
+    user.avatar_style = style
+    db.session.commit()
+    return jsonify({"ok": True, "style": style})
 
 @app.route("/api/update_name", methods=["POST"])
 @login_required

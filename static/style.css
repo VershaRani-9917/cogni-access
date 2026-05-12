@@ -1818,3 +1818,48 @@ mark.highlight-word:hover::after { opacity: 1; }
 .toast-ok    { background: var(--clr-easy); color: #fff; }
 .toast-error { background: var(--clr-hard); color: #fff; }
 .toast-info  { background: var(--text-primary); color: var(--card-bg); }
+
+/* ── Avatar Styles (10 gradient options) ──────────────────────── */
+.avatar-style-0 { background: linear-gradient(135deg, #0891B2 0%, #0C4A6E 100%); }
+.avatar-style-1 { background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%); }
+.avatar-style-2 { background: linear-gradient(135deg, #F43F5E 0%, #BE185D 100%); }
+.avatar-style-3 { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); }
+.avatar-style-4 { background: linear-gradient(135deg, #10B981 0%, #065F46 100%); }
+.avatar-style-5 { background: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%); }
+.avatar-style-6 { background: linear-gradient(135deg, #6366F1 0%, #3730A3 100%); }
+.avatar-style-7 { background: linear-gradient(135deg, #F97316 0%, #C2410C 100%); }
+.avatar-style-8 { background: linear-gradient(135deg, #14B8A6 0%, #0F766E 100%); }
+.avatar-style-9 { background: linear-gradient(135deg, #EC4899 0%, #9D174D 100%); }
+
+/* ── Avatar swatch picker ─────────────────────────────────────── */
+.avatar-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.25rem 0;
+}
+.avatar-swatch {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #fff;
+  border: 3px solid transparent;
+  outline: none;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  font-family: inherit;
+  line-height: 1;
+}
+.avatar-swatch:hover {
+  transform: scale(1.12);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+}
+.avatar-swatch-active {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px var(--brand-1), 0 4px 14px rgba(0,0,0,0.2);
+  transform: scale(1.12);
+}

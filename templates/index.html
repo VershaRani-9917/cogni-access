@@ -50,7 +50,7 @@
           <span id="themeLabel">Dark</span>
         </button>
         <button class="nav-user-chip" id="profileBtn" onclick="openSettings()" title="Account Settings" aria-label="Account Settings">
-          <span class="user-avatar" id="navAvatar">{{ user_name[0]|upper }}</span>
+          <span class="user-avatar avatar-style-{{ avatar_style }}" id="navAvatar">{{ user_name[0]|upper }}</span>
           <span class="nav-username" id="navUsername">{{ user_name }}</span>
         </button>
         <a href="/logout" class="nav-btn nav-btn-logout" title="Sign out" aria-label="Sign out">
@@ -546,13 +546,22 @@
         <!-- ── Profile Tab ── -->
         <div id="stab-profile" class="settings-section" role="tabpanel">
           <div class="profile-header-row">
-            <div class="profile-big-avatar" id="settingsAvatar">V</div>
+            <div class="profile-big-avatar avatar-style-{{ avatar_style }}" id="settingsAvatar">{{ user_name[0]|upper }}</div>
             <div class="profile-header-info">
               <p class="profile-name-display" id="profileNameDisplay">—</p>
               <p class="profile-email-display" id="profileEmailDisplay">—</p>
               <p class="profile-joined" id="profileJoined">—</p>
             </div>
           </div>
+
+          <!-- ── Avatar style picker ── -->
+          <div class="settings-form-group">
+            <label class="sf-label">Avatar Style</label>
+            <div class="avatar-swatches" id="avatarSwatches" aria-label="Choose avatar style"></div>
+            <p class="settings-msg" id="avatarMsg"></p>
+          </div>
+          <hr class="settings-divider" />
+
           <div class="settings-form-group">
             <label class="sf-label" for="settingsName">Display Name</label>
             <div class="settings-input-row">
