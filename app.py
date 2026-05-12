@@ -1,11 +1,17 @@
 import os
 import csv
+import re
 import uuid
 import string
 import datetime
 from functools import wraps
 
 import nltk
+# Point NLTK at the bundled data directory first (baked in during Render build)
+_NLTK_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nltk_data")
+if os.path.isdir(_NLTK_DATA_DIR):
+    nltk.data.path.insert(0, _NLTK_DATA_DIR)
+
 import numpy as np
 import pandas as pd
 import joblib
@@ -252,10 +258,22 @@ def get_definition(word):
 # ── Text Processing ────────────────────────────────────────────────────────────
 STOP_WORDS = set(stopwords.words("english"))
 
+def _safe_sent_tokenize(text):
+    try:
+        return sent_tokenize(text)
+    except Exception:
+        return re.split(r'(?<=[.!?])\s+', text) or [text]
+
+def _safe_word_tokenize(text):
+    try:
+        return word_tokenize(text)
+    except Exception:
+        return re.findall(r"[A-Za-z']+|[^\w\s]", text)
+
 def preprocess_text(raw_text):
     cleaned   = " ".join(raw_text.split())
-    sentences = sent_tokenize(cleaned)
-    words     = word_tokenize(cleaned)
+    sentences = _safe_sent_tokenize(cleaned)
+    words     = _safe_word_tokenize(cleaned)
     alpha     = [w for w in words if w.isalpha()]
 
     avg_word_len = (sum(len(w) for w in alpha) / len(alpha)) if alpha else 0
@@ -457,11 +475,15 @@ def analyze():
     if not raw_text:
         return jsonify({"error": "No text provided"}), 400
 
-    processed       = preprocess_text(raw_text)
-    difficult_words = detect_difficult_words(processed["alpha_words"])
-    highlighted     = build_highlighted_html(processed["cleaned_text"], difficult_words)
-    simplified      = build_tooltip_html(processed["cleaned_text"], difficult_words)
-    sources         = list(set(v["source"] for v in difficult_words.values()))
+    try:
+        processed       = preprocess_text(raw_text)
+        difficult_words = detect_difficult_words(processed["alpha_words"])
+        highlighted     = build_highlighted_html(processed["cleaned_text"], difficult_words)
+        simplified      = build_tooltip_html(processed["cleaned_text"], difficult_words)
+        sources         = list(set(v["source"] for v in difficult_words.values()))
+    except Exception as exc:
+        return jsonify({"error": f"Text processing failed: {exc}"}), 500
+
     # Use cached recommendation — avoids slow DB query on every analyze
     if _model_cache["font"] is not None:
         rec, n_pts = train_and_predict()

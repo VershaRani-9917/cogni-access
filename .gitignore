@@ -1,6 +1,9 @@
 # Database (fresh one created on server)
 cogni_access.db
 
+# NLTK data (downloaded during Render build, not committed)
+nltk_data/
+
 # Python cache
 __pycache__/
 *.pyc
